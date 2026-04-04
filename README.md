@@ -24,7 +24,7 @@ clojure -M:rebel
 Run the demo entry point:
 
 ```bash
-clojure -M -m openai.core
+clojure -M -m openai.main
 ```
 
 ## Run Tests
@@ -43,8 +43,13 @@ bb test
 
 There is no `build.clj` workflow in this repo now. The babashka task calls the JVM test runner directly.
 
+## Commits
+
+Commits in this repo should follow the approach described in `docs/commit.md`.
+Prefer the format `<symbol> <scope> - <summary>`.
+
 ## Verify the Namespace Loads
 
 ```bash
-clojure -e "(require 'openai.core)"
+clojure -e "(require 'openai.main)"
 ```

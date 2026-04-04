@@ -1,8 +1,7 @@
-(ns openai.core
+(ns openai.completions
   (:require
-   [hato.client :as hc]
-   [cheshire.core :as json])
-  (:gen-class))
+   [cheshire.core :as json]
+   [hato.client :as hc]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
 
@@ -55,11 +54,3 @@
                         {:status status
                          :headers headers
                          :body parsed-body})))))
-
-(defn -main [& _args]
-  (let [messages [{:role "system"
-                   :content "You are a helpful assistant."}
-                  {:role "user"
-                   :content "What is the clojure programming language?"}]]
-    (prn
-     (llm-request-completions messages))))
