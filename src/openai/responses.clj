@@ -1,4 +1,4 @@
-(ns openai.completions
+(ns openai.responses
   (:require
    [cheshire.core :as json]
    [hato.client :as hc]))
@@ -10,18 +10,20 @@
     (contains? headers "authorization")
     (assoc "authorization" "[REDACTED]")))
 
-(defn llm-request [messages]
+(defn llm-request [input]
   (when-not (seq openai-key)
     (throw (ex-info "OPENAI_API_KEY is not set." {})))
+
   (let [request-headers {"content-type" "application/json"
                          "authorization" (format "Bearer %s" openai-key)}
+
         response
         (try
-          (hc/post "https://api.openai.com/v1/chat/completions"
+          (hc/post "https://api.openai.com/v1/responses"
                    {:headers request-headers
                     :body (json/encode
-                           {:model "gpt-4"
-                            :messages messages})})
+                           {:model "gpt-5.4"
+                            :input input})})
           (catch Exception e
             (throw (ex-info "OpenAI request failed."
                             {:error (.getMessage e)}
@@ -49,8 +51,8 @@
                                   :headers headers
                                   :body body
                                   :opts {:headers (redact-headers request-headers)}}})))
-    (or (get-in parsed-body [:choices 0 :message :content])
-        (throw (ex-info "OpenAI response did not include assistant content."
+    (or (get-in parsed-body [:output 0 :content 0 :text])
+        (throw (ex-info "OpenAI response did not include output content."
                         {:status status
                          :headers headers
                          :body parsed-body})))))

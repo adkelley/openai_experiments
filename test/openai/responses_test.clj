@@ -1,53 +1,55 @@
-(ns openai.completions-test
+(ns openai.responses-test
   (:require
    [cheshire.core :as json]
    [clojure.test :refer [deftest is]]
    [hato.client :as hc]
-   [openai.completions :as completions]))
+   [openai.responses :as responses]))
 
-(def sample-messages
-  [{:role "user"
-    :content "Hello"}])
+(def sample-input
+  "Hello")
 
 (deftest redact-headers-redacts-authorization
   (is (= {"authorization" "[REDACTED]"
           "content-type" "application/json"}
-         (#'openai.completions/redact-headers
+         (#'openai.responses/redact-headers
           {"authorization" "Bearer secret"
            "content-type" "application/json"})))
   (is (= {"content-type" "application/json"}
-         (#'openai.completions/redact-headers
+         (#'openai.responses/redact-headers
           {"content-type" "application/json"})))
-  (is (nil? (#'openai.completions/redact-headers nil))))
+  (is (nil? (#'openai.responses/redact-headers nil))))
 
-(deftest llm-request-completions-returns-content-on-success
-  (with-redefs [completions/openai-key "test-key"
+(deftest llm-request-returns-output-text-on-success
+  (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [_url opts]
                           (is (= "Bearer test-key"
                                  (get-in opts [:headers "authorization"])))
+                          (is (= {:model "gpt-5.4"
+                                  :input sample-input}
+                                 (json/decode (:body opts) keyword)))
                           {:status 200
                            :headers {"content-type" "application/json"}
                            :body (json/encode
-                                  {:choices [{:message {:content "Hi there"}}]})})]
+                                  {:output [{:content [{:text "Hi there"}]}]})})]
     (is (= "Hi there"
-           (completions/llm-request sample-messages)))))
+           (responses/llm-request sample-input)))))
 
-(deftest llm-request-completions-throws-when-api-key-is-missing
-  (with-redefs [completions/openai-key nil]
+(deftest llm-request-throws-when-api-key-is-missing
+  (with-redefs [responses/openai-key nil]
     (let [ex (try
-               (completions/llm-request sample-messages)
+               (responses/llm-request sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (instance? clojure.lang.ExceptionInfo ex))
       (is (= "OPENAI_API_KEY is not set."
              (ex-message ex))))))
 
-(deftest llm-request-completions-wraps-http-client-exceptions
-  (with-redefs [completions/openai-key "test-key"
+(deftest llm-request-wraps-http-client-exceptions
+  (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           (throw (Exception. "boom")))]
     (let [ex (try
-               (completions/llm-request sample-messages)
+               (responses/llm-request sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI request failed."
@@ -57,14 +59,14 @@
       (is (= "boom"
              (some-> ex ex-cause .getMessage))))))
 
-(deftest llm-request-completions-throws-on-non-success-status-and-redacts-auth
-  (with-redefs [completions/openai-key "test-key"
+(deftest llm-request-throws-on-non-success-status-and-redacts-auth
+  (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 401
                            :headers {"content-type" "application/json"}
                            :body (json/encode {:error {:message "Unauthorized"}})})]
     (let [ex (try
-               (completions/llm-request sample-messages)
+               (responses/llm-request sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI request returned a non-success status."
@@ -76,14 +78,14 @@
       (is (= "Unauthorized"
              (get-in (ex-data ex) [:body :error :message]))))))
 
-(deftest llm-request-completions-throws-on-empty-body
-  (with-redefs [completions/openai-key "test-key"
+(deftest llm-request-throws-on-empty-body
+  (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 200
                            :headers {"content-type" "application/json"}
                            :body ""})]
     (let [ex (try
-               (completions/llm-request sample-messages)
+               (responses/llm-request sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI response body was empty or could not be decoded."
@@ -91,17 +93,17 @@
       (is (= ""
              (get-in (ex-data ex) [:response :body]))))))
 
-(deftest llm-request-completions-throws-when-content-is-missing
-  (with-redefs [completions/openai-key "test-key"
+(deftest llm-request-throws-when-output-content-is-missing
+  (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 200
                            :headers {"content-type" "application/json"}
-                           :body (json/encode {:choices [{:message {}}]})})]
+                           :body (json/encode {:output [{:content [{}]}]})})]
     (let [ex (try
-               (completions/llm-request sample-messages)
+               (responses/llm-request sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
-      (is (= "OpenAI response did not include assistant content."
+      (is (= "OpenAI response did not include output content."
              (ex-message ex)))
-      (is (= {:choices [{:message {}}]}
+      (is (= {:output [{:content [{}]}]}
              (:body (ex-data ex)))))))
