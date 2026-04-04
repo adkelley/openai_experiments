@@ -30,9 +30,11 @@
                             e))))
         {:keys [body headers status]}
         response
+
         parsed-body
         (when (seq body)
           (json/decode body keyword))]
+
     (when-not (<= 200 status 299)
       (throw (ex-info "OpenAI request returned a non-success status."
                       {:status status

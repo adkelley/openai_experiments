@@ -43,6 +43,20 @@ bb test
 
 There is no `build.clj` workflow in this repo now. The babashka task calls the JVM test runner directly.
 
+## Format Code
+
+Format the Clojure source files with `cljfmt`:
+
+```bash
+clojure -M:fmt fix src test script
+```
+
+Or use babashka:
+
+```bash
+bb fmt
+```
+
 ## Commits
 
 Commits in this repo should follow the approach described in `docs/commit.md`.

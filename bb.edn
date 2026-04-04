@@ -4,4 +4,6 @@
  {test   {:doc "Run tests"
           :requires ([test-runner])
           :task (test-runner/run)
-          :depends []}}}
+          :depends []}
+  fmt    {:doc "Format Clojure files with cljfmt"
+          :task (shell "clojure -M:fmt fix src test script")}}}
