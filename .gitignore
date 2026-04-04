@@ -1,0 +1,25 @@
+# Clojure build and classpath caches
+.cpcache/
+classes/
+target/
+out/
+
+# REPL and local runtime files
+.nrepl-port
+.rebel_readline_history
+.socket-repl-port
+.shadow-cljs/
+.cljs_node_repl/
+
+# Linting and language server state
+.clj-kondo/
+.lsp/
+.calva/
+
+# IDE/editor files
+.idea/
+*.iml
+.vscode/
+
+# OS files
+.DS_Store

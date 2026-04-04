@@ -1,0 +1,7 @@
+{:paths ["script"]
+ :deps {}
+ :tasks
+ {test   {:doc "Run tests"
+          :requires ([test-runner])
+          :task (test-runner/run)
+          :depends []}}}

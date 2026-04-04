@@ -1,0 +1,9 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.4"}
+        hato/hato {:mvn/version "1.0.0"}
+        cheshire/cheshire {:mvn/version "6.2.0"}}
+ :aliases {:test {:extra-paths ["test"]}
+           :rebel {:extra-deps {com.bhauman/rebel-readline {:mvn/version "0.1.7"}}
+                   :exec-fn rebel-readline.tool/repl
+                   :exec-args {:key-map :viins}
+                   :main-opts ["-m" "rebel-readline.main"]}}}
