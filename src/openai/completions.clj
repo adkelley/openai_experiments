@@ -10,7 +10,12 @@
     (contains? headers "authorization")
     (assoc "authorization" "[REDACTED]")))
 
-(defn llm-request [messages]
+(defn request-text [messages]
+  (when-not (and (vector? messages)
+                 (seq messages)
+                 (every? map? messages))
+    (throw (ex-info "Messages must be a non-empty vector of maps." {})))
+
   (when-not (seq openai-key)
     (throw (ex-info "OPENAI_API_KEY is not set." {})))
   (let [request-headers {"content-type" "application/json"

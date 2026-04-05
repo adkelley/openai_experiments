@@ -9,13 +9,13 @@
                    :content "You are a helpful assistant."}
                   {:role "user"
                    :content "What is the clojure programming language?"}]]
-    (completions/llm-request messages)))
+    (completions/request-text messages)))
 
 (def default-responses-input
   "Write a one-sentence description of bedtime story")
 
 (defn- run-responses [input]
-  (responses/llm-request input))
+  (responses/request-text input))
 
 (defn -main [& args]
   (let [api-name (first args)

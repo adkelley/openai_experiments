@@ -10,7 +10,10 @@
     (contains? headers "authorization")
     (assoc "authorization" "[REDACTED]")))
 
-(defn llm-request [input]
+(defn request-text [input]
+  (when-not (string? input)
+    (throw (ex-info "Input must be a string." {})))
+
   (when-not (seq openai-key)
     (throw (ex-info "OPENAI_API_KEY is not set." {})))
 
