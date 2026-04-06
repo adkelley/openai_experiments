@@ -10,54 +10,75 @@
     (contains? headers "authorization")
     (assoc "authorization" "[REDACTED]")))
 
-(defn request-text [input]
-  (when-not (string? input)
-    (throw (ex-info "Input must be a string." {})))
+(defn- request-headers []
+  {"content-type" "application/json"
+   "authorization" (format "Bearer %s" openai-key)})
 
+(defn- parse-json-body [body]
+  (when (seq body)
+    (json/decode body keyword)))
+
+(defn- output-text [response-body]
+  (some (fn [node]
+          (when (map? node)
+            (:text node)))
+        (tree-seq coll? seq (:output response-body))))
+
+(defn- post-responses-request [payload]
   (when-not (seq openai-key)
     (throw (ex-info "OPENAI_API_KEY is not set." {})))
 
-  (let [request-headers {"content-type" "application/json"
-                         "authorization" (format "Bearer %s" openai-key)}
-
+  (let [headers (request-headers)
         response
         (try
           (hc/post "https://api.openai.com/v1/responses"
-                   {:headers request-headers
-                    :body (json/encode
-                           {:model "gpt-5.4"
-                            :input input})})
+                   {:headers headers
+                    :body (json/encode payload)})
           (catch Exception e
             (throw (ex-info "OpenAI request failed."
                             {:error (.getMessage e)}
                             e))))
-        {:keys [body headers status]}
+        {:keys [body status]}
         response
-
         parsed-body
-        (when (seq body)
-          (json/decode body keyword))]
-
+        (parse-json-body body)]
     (when-not (<= 200 status 299)
       (throw (ex-info "OpenAI request returned a non-success status."
                       {:status status
-                       :headers headers
                        :body parsed-body
                        :response {:status status
-                                  :headers headers
                                   :body body
-                                  :opts {:headers (redact-headers request-headers)}}})))
+                                  :opts {:headers (redact-headers headers)}}})))
     (when-not parsed-body
       (throw (ex-info "OpenAI response body was empty or could not be decoded."
                       {:status status
-                       :headers headers
                        :body body
                        :response {:status status
-                                  :headers headers
                                   :body body
-                                  :opts {:headers (redact-headers request-headers)}}})))
-    (or (get-in parsed-body [:output 0 :content 0 :text])
+                                  :opts {:headers (redact-headers headers)}}})))
+    parsed-body))
+
+(defn request-text [input]
+  (when-not (string? input)
+    (throw (ex-info "Input must be a string." {})))
+
+  (let [response-body
+        (post-responses-request
+         {:model "gpt-5.4"
+          :input input})]
+    (or (output-text response-body)
         (throw (ex-info "OpenAI response did not include output content."
-                        {:status status
-                         :headers headers
-                         :body parsed-body})))))
+                        {:body response-body})))))
+
+(defn request-websearch [input]
+  (when-not (string? input)
+    (throw (ex-info "Input must be a string." {})))
+
+  (let [response-body
+        (post-responses-request
+         {:model "gpt-5.4"
+          :input input
+          :tools [{:type "web_search_preview"}]})]
+    (or (output-text response-body)
+        (throw (ex-info "OpenAI web search response did not include output content."
+                        {:body response-body})))))
