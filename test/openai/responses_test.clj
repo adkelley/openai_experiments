@@ -19,7 +19,7 @@
           {"content-type" "application/json"})))
   (is (nil? (#'openai.responses/redact-headers nil))))
 
-(deftest llm-request-returns-output-text-on-success
+(deftest request--returns-output-text-on-success
   (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [_url opts]
                           (is (= "Bearer test-key"
@@ -32,24 +32,24 @@
                            :body (json/encode
                                   {:output [{:content [{:text "Hi there"}]}]})})]
     (is (= "Hi there"
-           (responses/llm-request sample-input)))))
+           (responses/request-text sample-input)))))
 
-(deftest llm-request-throws-when-api-key-is-missing
+(deftest request--throws-when-api-key-is-missing
   (with-redefs [responses/openai-key nil]
     (let [ex (try
-               (responses/llm-request sample-input)
+               (responses/request-text sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (instance? clojure.lang.ExceptionInfo ex))
       (is (= "OPENAI_API_KEY is not set."
              (ex-message ex))))))
 
-(deftest llm-request-wraps-http-client-exceptions
+(deftest request--wraps-http-client-exceptions
   (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           (throw (Exception. "boom")))]
     (let [ex (try
-               (responses/llm-request sample-input)
+               (responses/request-text sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI request failed."
@@ -59,14 +59,14 @@
       (is (= "boom"
              (some-> ex ex-cause .getMessage))))))
 
-(deftest llm-request-throws-on-non-success-status-and-redacts-auth
+(deftest request--throws-on-non-success-status-and-redacts-auth
   (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 401
                            :headers {"content-type" "application/json"}
                            :body (json/encode {:error {:message "Unauthorized"}})})]
     (let [ex (try
-               (responses/llm-request sample-input)
+               (responses/request-text sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI request returned a non-success status."
@@ -78,14 +78,14 @@
       (is (= "Unauthorized"
              (get-in (ex-data ex) [:body :error :message]))))))
 
-(deftest llm-request-throws-on-empty-body
+(deftest request--throws-on-empty-body
   (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 200
                            :headers {"content-type" "application/json"}
                            :body ""})]
     (let [ex (try
-               (responses/llm-request sample-input)
+               (responses/request-text sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI response body was empty or could not be decoded."
@@ -93,14 +93,14 @@
       (is (= ""
              (get-in (ex-data ex) [:response :body]))))))
 
-(deftest llm-request-throws-when-output-content-is-missing
+(deftest request--throws-when-output-content-is-missing
   (with-redefs [responses/openai-key "test-key"
                 hc/post (fn [& _]
                           {:status 200
                            :headers {"content-type" "application/json"}
                            :body (json/encode {:output [{:content [{}]}]})})]
     (let [ex (try
-               (responses/llm-request sample-input)
+               (responses/request-text sample-input)
                (catch clojure.lang.ExceptionInfo e
                  e))]
       (is (= "OpenAI response did not include output content."

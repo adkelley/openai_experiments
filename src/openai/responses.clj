@@ -1,7 +1,8 @@
 (ns openai.responses
   (:require
    [cheshire.core :as json]
-   [hato.client :as hc]))
+   [hato.client :as hc]
+   [openai.files :as files]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
 
@@ -33,7 +34,8 @@
         (try
           (hc/post "https://api.openai.com/v1/responses"
                    {:headers headers
-                    :body (json/encode payload)})
+                    :body (json/encode payload)
+                    :throw-exceptions false})
           (catch Exception e
             (throw (ex-info "OpenAI request failed."
                             {:error (.getMessage e)}
@@ -82,3 +84,27 @@
     (or (output-text response-body)
         (throw (ex-info "OpenAI web search response did not include output content."
                         {:body response-body})))))
+
+(defn file-input-by-id [input-text file-id]
+  (when-not (string? input-text)
+    (throw (ex-info "Input must be a string." {})))
+
+  (when-not (string? file-id)
+    (throw (ex-info "File id must be a string." {})))
+
+  (let [response-body
+        (post-responses-request
+         {:model "gpt-5.4"
+          :input [{:role "user"
+                   :content [{:type "input_text"
+                              :text input-text}
+                             {:type "input_file"
+                              :file_id file-id}]}]})]
+
+    (or (output-text response-body)
+        (throw (ex-info "OpenAI file input response did not include output content."
+                        {:body response-body})))))
+
+(defn file-input [input-text file-path]
+  (let [file-id (files/upload-file file-path)]
+    (file-input-by-id input-text file-id)))

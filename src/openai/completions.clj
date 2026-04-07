@@ -59,3 +59,5 @@
                         {:status status
                          :headers headers
                          :body parsed-body})))))
+
+(def llm-request request-text)
