@@ -1,8 +1,7 @@
 (ns openai.responses
   (:require
    [cheshire.core :as json]
-   [hato.client :as hc]
-   [openai.files :as files]))
+   [hato.client :as hc]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
 
@@ -20,10 +19,45 @@
     (json/decode body keyword)))
 
 (defn- output-text [response-body]
-  (some (fn [node]
-          (when (map? node)
-            (:text node)))
-        (tree-seq coll? seq (:output response-body))))
+  (or (:output_text response-body)
+      (some (fn [node]
+              (when (map? node)
+                (:text node)))
+            (tree-seq coll? seq (:output response-body)))))
+
+(defn- find-by-type [items type-name]
+  (some #(when (= type-name (:type %)) %) items))
+
+(defn- decode-by-type-selector [response-body selector]
+  (let [{:keys [output-type content-type field]} selector
+        output-item (find-by-type (:output response-body) output-type)
+        content-item (find-by-type (:content output-item) content-type)
+        selected-field (or field :text)]
+    (get content-item selected-field)))
+
+(defn- decode-response-body [response-body selector]
+  (cond
+    (nil? selector)
+    (output-text response-body)
+
+    (and (map? selector)
+         (string? (:output-type selector))
+         (string? (:content-type selector))
+         (or (nil? (:field selector))
+             (keyword? (:field selector))))
+    (decode-by-type-selector response-body selector)
+
+    (keyword? selector)
+    (get response-body selector)
+
+    (and (vector? selector)
+         (seq selector)
+         (every? #(or (keyword? %) (integer? %)) selector))
+    (get-in response-body selector)
+
+    :else
+    (throw (ex-info "Expected nil, a keyword, a vector path, or a type selector map."
+                    {:selector selector}))))
 
 (defn- post-responses-request [payload]
   (when-not (seq openai-key)
@@ -60,51 +94,14 @@
                                   :opts {:headers (redact-headers headers)}}})))
     parsed-body))
 
-(defn request-text [input]
-  (when-not (string? input)
-    (throw (ex-info "Input must be a string." {})))
+(defn request-response [encoder selector]
+  (when-not (map? encoder)
+    (throw (ex-info "Encoder must be a map." {})))
 
-  (let [response-body
-        (post-responses-request
-         {:model "gpt-5.4"
-          :input input})]
-    (or (output-text response-body)
-        (throw (ex-info "OpenAI response did not include output content."
-                        {:body response-body})))))
-
-(defn request-websearch [input]
-  (when-not (string? input)
-    (throw (ex-info "Input must be a string." {})))
-
-  (let [response-body
-        (post-responses-request
-         {:model "gpt-5.4"
-          :input input
-          :tools [{:type "web_search_preview"}]})]
-    (or (output-text response-body)
-        (throw (ex-info "OpenAI web search response did not include output content."
-                        {:body response-body})))))
-
-(defn file-input-by-id [input-text file-id]
-  (when-not (string? input-text)
-    (throw (ex-info "Input must be a string." {})))
-
-  (when-not (string? file-id)
-    (throw (ex-info "File id must be a string." {})))
-
-  (let [response-body
-        (post-responses-request
-         {:model "gpt-5.4"
-          :input [{:role "user"
-                   :content [{:type "input_text"
-                              :text input-text}
-                             {:type "input_file"
-                              :file_id file-id}]}]})]
-
-    (or (output-text response-body)
-        (throw (ex-info "OpenAI file input response did not include output content."
-                        {:body response-body})))))
-
-(defn file-input [input-text file-path]
-  (let [file-id (files/upload-file file-path)]
-    (file-input-by-id input-text file-id)))
+  (let [response-body (post-responses-request encoder)
+        result (decode-response-body response-body selector)]
+    (if (nil? result)
+      (throw (ex-info "OpenAI response did not include requested content."
+                      {:selector selector
+                       :body response-body}))
+      result)))
