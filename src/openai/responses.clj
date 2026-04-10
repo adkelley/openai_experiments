@@ -98,7 +98,8 @@
   (when-not (map? encoder)
     (throw (ex-info "Encoder must be a map." {})))
 
-  (let [response-body (post-responses-request encoder)
+  (let [payload (update encoder :model #(or % "gpt-5-mini"))
+        response-body (post-responses-request payload)
         result (decode-response-body response-body selector)]
     (if (nil? result)
       (throw (ex-info "OpenAI response did not include requested content."

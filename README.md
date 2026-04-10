@@ -62,6 +62,7 @@ Prefer the format `<symbol> <scope> - <summary>`.
 clojure -e "(require 'openai.completions)"
 clojure -e "(require 'openai.files)"
 clojure -e "(require 'openai.responses)"
+clojure -e "(require 'openai.audio)"
 ```
 
 ## API Examples
@@ -71,6 +72,7 @@ Require the namespaces you want to use from the REPL:
 ```clojure
 (require '[openai.completions :as completions])
 (require '[openai.responses :as responses])
+(require '[openai.audio :as audio])
 ```
 
 ### Chat Completions
@@ -141,3 +143,85 @@ You can also select a different field from the matched content item:
 ```
 
 If the selector does not match anything, the function throws an `ExceptionInfo` with the selector and decoded response body in `ex-data`.
+
+### Audio API
+
+`openai.audio` currently covers transcription, translation, and text-to-speech.
+
+#### Transcription
+
+`openai.audio/transcribe-audio` sends an audio transcription request and returns the `:text` from the decoded response body.
+
+If `:model` is omitted, it defaults to `"gpt-4o-mini-transcribe"`.
+
+```clojure
+(audio/transcribe-audio "ww2.mp3")
+;; => "..."
+```
+
+The source can also be a remote audio URL. Remote files are downloaded to a temporary file before upload.
+
+```clojure
+(audio/transcribe-audio
+ "https://example.com/audio/sample.wav"
+ {:prompt "This is a history lecture."
+  :language "en"})
+;; => "..."
+```
+
+Supported options are passed through as multipart fields:
+
+```clojure
+{:model "gpt-4o-transcribe"
+ :prompt "Optional prompt"
+ :language "en"
+ :temperature 0}
+```
+
+#### Translation
+
+`openai.audio/translate-audio` sends an audio translation request and returns the translated text.
+
+If `:model` is omitted, it defaults to `"whisper-1"`.
+
+```clojure
+(audio/translate-audio "ww2.mp3")
+;; => "..."
+```
+
+It accepts the same option keys as `transcribe-audio`.
+
+#### Text To Speech
+
+`openai.audio/tts` sends a text-to-speech request and writes the returned audio bytes to a file.
+
+If options are omitted, it defaults to:
+
+```clojure
+{:model "gpt-4o-mini-tts"
+ :voice "alloy"
+ :format "mp3"}
+```
+
+When `:output-path` is omitted, the function writes to a temporary file and returns that path.
+
+```clojure
+(audio/tts "Hello world")
+;; => "/tmp/openai-speech-....mp3"
+```
+
+You can also provide a local text file or a remote text URL as the input source:
+
+```clojure
+(audio/tts "notes.txt"
+           {:voice "nova"
+            :format "wav"
+            :output-path "/tmp/notes.wav"})
+;; => "/tmp/notes.wav"
+
+(audio/tts "https://example.com/script.txt"
+           {:instructions "Read this like a radio host."})
+;; => "/tmp/openai-speech-....mp3"
+```
+
+`openai.audio/speak-audio` is currently an alias for `openai.audio/tts`.
