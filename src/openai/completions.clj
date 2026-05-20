@@ -1,14 +1,10 @@
 (ns openai.completions
   (:require
    [cheshire.core :as json]
-   [hato.client :as hc]))
+   [hato.client :as hc]
+   [openai.error :as error]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
-
-(defn- redact-headers [headers]
-  (cond-> headers
-    (contains? headers "authorization")
-    (assoc "authorization" "[REDACTED]")))
 
 (defn request-text [messages]
   (when-not (and (vector? messages)
@@ -26,7 +22,8 @@
                    {:headers request-headers
                     :body (json/encode
                            {:model "gpt-4"
-                            :messages messages})})
+                            :messages messages})
+                    :throw-exceptions false})
           (catch Exception e
             (throw (ex-info "OpenAI request failed."
                             {:error (.getMessage e)}
@@ -37,14 +34,7 @@
         (when (seq body)
           (json/decode body keyword))]
     (when-not (<= 200 status 299)
-      (throw (ex-info "OpenAI request returned a non-success status."
-                      {:status status
-                       :headers headers
-                       :body parsed-body
-                       :response {:status status
-                                  :headers headers
-                                  :body body
-                                  :opts {:headers (redact-headers request-headers)}}})))
+      (error/throw-response-error response request-headers))
     (when-not parsed-body
       (throw (ex-info "OpenAI response body was empty or could not be decoded."
                       {:status status
@@ -53,7 +43,7 @@
                        :response {:status status
                                   :headers headers
                                   :body body
-                                  :opts {:headers (redact-headers request-headers)}}})))
+                                  :opts {:headers (error/redact-headers request-headers)}}})))
     (or (get-in parsed-body [:choices 0 :message :content])
         (throw (ex-info "OpenAI response did not include assistant content."
                         {:status status

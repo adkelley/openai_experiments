@@ -3,7 +3,8 @@
    [cheshire.core :as json]
    [clojure.test :refer [deftest is]]
    [hato.client :as hc]
-   [openai.completions :as completions]))
+   [openai.completions :as completions]
+   [openai.error :as error]))
 
 (def sample-messages
   [{:role "user"
@@ -12,13 +13,13 @@
 (deftest redact-headers-redacts-authorization
   (is (= {"authorization" "[REDACTED]"
           "content-type" "application/json"}
-         (#'openai.completions/redact-headers
+         (error/redact-headers
           {"authorization" "Bearer secret"
            "content-type" "application/json"})))
   (is (= {"content-type" "application/json"}
-         (#'openai.completions/redact-headers
+         (error/redact-headers
           {"content-type" "application/json"})))
-  (is (nil? (#'openai.completions/redact-headers nil))))
+  (is (nil? (error/redact-headers nil))))
 
 (deftest llm-request-completions-returns-content-on-success
   (with-redefs [completions/openai-key "test-key"
@@ -57,23 +58,24 @@
       (is (= "boom"
              (some-> ex ex-cause .getMessage))))))
 
-(deftest llm-request-completions-throws-on-non-success-status-and-redacts-auth
+(deftest llm-request-completions-throws-on-rate-limit-and-redacts-auth
   (with-redefs [completions/openai-key "test-key"
                 hc/post (fn [& _]
-                          {:status 401
+                          {:status 429
                            :headers {"content-type" "application/json"}
-                           :body (json/encode {:error {:message "Unauthorized"}})})]
+                           :body (json/encode
+                                  {:error {:message "You exceeded your current quota."}})})]
     (let [ex (try
                (completions/llm-request sample-messages)
                (catch clojure.lang.ExceptionInfo e
                  e))]
-      (is (= "OpenAI request returned a non-success status."
+      (is (= "OpenAI returned status 429. Check or update your OpenAI billing and usage limits."
              (ex-message ex)))
-      (is (= 401
+      (is (= 429
              (get-in (ex-data ex) [:response :status])))
       (is (= "[REDACTED]"
              (get-in (ex-data ex) [:response :opts :headers "authorization"])))
-      (is (= "Unauthorized"
+      (is (= "You exceeded your current quota."
              (get-in (ex-data ex) [:body :error :message]))))))
 
 (deftest llm-request-completions-throws-on-empty-body

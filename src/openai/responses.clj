@@ -1,14 +1,10 @@
 (ns openai.responses
   (:require
    [cheshire.core :as json]
-   [hato.client :as hc]))
+   [hato.client :as hc]
+   [openai.error :as error]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
-
-(defn- redact-headers [headers]
-  (cond-> headers
-    (contains? headers "authorization")
-    (assoc "authorization" "[REDACTED]")))
 
 (defn- request-headers []
   {"content-type" "application/json"
@@ -79,19 +75,14 @@
         parsed-body
         (parse-json-body body)]
     (when-not (<= 200 status 299)
-      (throw (ex-info "OpenAI request returned a non-success status."
-                      {:status status
-                       :body parsed-body
-                       :response {:status status
-                                  :body body
-                                  :opts {:headers (redact-headers headers)}}})))
+      (error/throw-response-error response headers))
     (when-not parsed-body
       (throw (ex-info "OpenAI response body was empty or could not be decoded."
                       {:status status
                        :body body
                        :response {:status status
                                   :body body
-                                  :opts {:headers (redact-headers headers)}}})))
+                                  :opts {:headers (error/redact-headers headers)}}})))
     parsed-body))
 
 (defn request-response [encoder selector]

@@ -3,17 +3,13 @@
    [cheshire.core :as json]
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [hato.client :as hc])
+   [hato.client :as hc]
+   [openai.error :as error])
   (:import
    [java.net URI URLDecoder]
    [java.nio.charset StandardCharsets]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
-
-(defn- redact-headers [headers]
-  (cond-> headers
-    (contains? headers "authorization")
-    (assoc "authorization" "[REDACTED]")))
 
 (defn- auth-headers []
   {"authorization" (format "Bearer %s" openai-key)})
@@ -108,19 +104,14 @@
         response
         parsed-body (parse-json-body body)]
     (when-not (<= 200 status 299)
-      (throw (ex-info (str failure-message " returned a non-success status.")
-                      {:status status
-                       :body parsed-body
-                       :response {:status status
-                                  :body body
-                                  :opts {:headers (redact-headers headers)}}})))
+      (error/throw-response-error response headers))
     (when-not parsed-body
       (throw (ex-info (str failure-message " response body was empty or could not be decoded.")
                       {:status status
                        :body body
                        :response {:status status
                                   :body body
-                                  :opts {:headers (redact-headers headers)}}})))
+                                  :opts {:headers (error/redact-headers headers)}}})))
     parsed-body))
 
 (defn- slurp-text-file [file-path]
@@ -236,12 +227,8 @@
                             e))))
         {:keys [body status]} response]
     (when-not (<= 200 status 299)
-      (throw (ex-info "OpenAI audio speech request failed. returned a non-success status."
-                      {:status status
-                       :body (parse-json-body (body->string body))
-                       :response {:status status
-                                  :body (body->string body)
-                                  :opts {:headers (redact-headers headers)}}})))
+      (error/throw-response-error (assoc response :body (body->string body))
+                                  headers))
     (write-bytes! (output-file (:output-path request-opts)
                                (:format request-opts))
                   body)))

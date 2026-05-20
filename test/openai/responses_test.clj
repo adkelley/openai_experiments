@@ -3,18 +3,19 @@
    [cheshire.core :as json]
    [clojure.test :refer [deftest is testing]]
    [hato.client :as hc]
+   [openai.error :as error]
    [openai.responses :as responses]))
 
 (deftest redact-headers-redacts-authorization
   (is (= {"authorization" "[REDACTED]"
           "content-type" "application/json"}
-         (#'openai.responses/redact-headers
+         (#'error/redact-headers
           {"authorization" "Bearer secret"
            "content-type" "application/json"})))
   (is (= {"content-type" "application/json"}
-         (#'openai.responses/redact-headers
+         (#'error/redact-headers
           {"content-type" "application/json"})))
-  (is (nil? (#'openai.responses/redact-headers nil))))
+  (is (nil? (#'error/redact-headers nil))))
 
 (deftest request-response-uses-default-model-and-default-selector
   (with-redefs [responses/openai-key "test-key"
@@ -118,7 +119,7 @@
                (responses/request-response {:input "Hello"} nil)
                (catch clojure.lang.ExceptionInfo e
                  e))]
-      (is (= "OpenAI request returned a non-success status."
+      (is (= "OpenAI returned status 401. Check that OPENAI_API_KEY is set and valid."
              (ex-message ex)))
       (is (= 401
              (get-in (ex-data ex) [:response :status])))

@@ -110,7 +110,7 @@
                (audio/transcribe-audio "README.md")
                (catch clojure.lang.ExceptionInfo e
                  e))]
-      (is (= "OpenAI audio transcription request failed. returned a non-success status."
+      (is (= "OpenAI returned status 401. Check that OPENAI_API_KEY is set and valid."
              (ex-message ex)))
       (is (= 401
              (get-in (ex-data ex) [:response :status])))
@@ -259,7 +259,7 @@
                (audio/tts "Hello world")
                (catch clojure.lang.ExceptionInfo e
                  e))]
-      (is (= "OpenAI audio speech request failed. returned a non-success status."
+      (is (= "OpenAI returned status 401. Check that OPENAI_API_KEY is set and valid."
              (ex-message ex)))
       (is (= 401
              (get-in (ex-data ex) [:response :status])))
