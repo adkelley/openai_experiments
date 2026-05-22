@@ -5,6 +5,7 @@
    [openai.error :as error]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
+(def model "gpt-5.4-mini")
 
 (defn request-text [messages]
   (when-not (and (vector? messages)
@@ -21,7 +22,7 @@
           (hc/post "https://api.openai.com/v1/chat/completions"
                    {:headers request-headers
                     :body (json/encode
-                           {:model "gpt-4"
+                           {:model model
                             :messages messages})
                     :throw-exceptions false})
           (catch Exception e

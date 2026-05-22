@@ -5,6 +5,7 @@
    [openai.error :as error]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
+(def model "gpt-5.4-minigi")
 
 (defn- request-headers []
   {"content-type" "application/json"
@@ -89,7 +90,7 @@
   (when-not (map? encoder)
     (throw (ex-info "Encoder must be a map." {})))
 
-  (let [payload (update encoder :model #(or % "gpt-5-mini"))
+  (let [payload (update encoder :model #(or % model))
         response-body (post-responses-request payload)
         result (decode-response-body response-body selector)]
     (if (nil? result)
