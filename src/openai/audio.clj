@@ -114,6 +114,32 @@
                                   :opts {:headers (error/redact-headers headers)}}})))
     parsed-body))
 
+(defn- request-raw-multipart [url multipart failure-message]
+  (require-api-key)
+  (let [headers (auth-headers)
+        response
+        (try
+          (hc/post url {:headers headers
+                        :multipart multipart
+                        :throw-exceptions false})
+          (catch Exception e
+            (throw (ex-info failure-message
+                            {:error (.getMessage e)}
+                            e))))
+        {:keys [body status]} response
+        response-body (body->string body)]
+    (when-not (<= 200 status 299)
+      (error/throw-response-error (assoc response :body response-body)
+                                  headers))
+    (when-not (seq response-body)
+      (throw (ex-info (str failure-message " response body was empty.")
+                      {:status status
+                       :body response-body
+                       :response {:status status
+                                  :body response-body
+                                  :opts {:headers (error/redact-headers headers)}}})))
+    response-body))
+
 (defn- slurp-text-file [file-path]
   (try
     (slurp (require-local-file file-path))
@@ -200,6 +226,39 @@
                          :error (.getMessage e)}
                         e))))))
 
+(defn- write-text! [file text failure-message]
+  (when-not (seq text)
+    (throw (ex-info "OpenAI text response body was empty." {})))
+  (try
+    (spit file text)
+    (.getPath file)
+    (catch Exception e
+      (throw (ex-info failure-message
+                      {:output-path (.getPath file)
+                       :error (.getMessage e)}
+                      e)))))
+
+(defn- replace-extension [filename extension]
+  (let [index (.lastIndexOf filename ".")
+        base (if (pos? index)
+               (subs filename 0 index)
+               filename)]
+    (str base "." extension)))
+
+(defn- srt-output-file [audio-source output-path]
+  (if (seq output-path)
+    (io/file output-path)
+    (let [filename (if (url-string? audio-source)
+                     (or (filename-from-url audio-source) "transcription")
+                     (.getName (io/file audio-source)))
+          srt-name (replace-extension filename "srt")]
+      (if (url-string? audio-source)
+        (io/file "/tmp" srt-name)
+        (let [parent (.getParentFile (io/file audio-source))]
+          (if parent
+            (io/file parent srt-name)
+            (io/file srt-name)))))))
+
 (defn- request-speech [source opts]
   (require-api-key)
   (let [request-opts (merge {:model "gpt-4o-mini-tts"
@@ -255,6 +314,33 @@
         (when delete-after?
           (.delete file))))))
 
+(defn- request-audio-srt [audio-source opts]
+  (let [{:keys [file delete-after?]} (audio-source->file audio-source)
+        request-opts (merge {:model "whisper-1"
+                             :language "en"
+                             :response-format "srt"}
+                            opts)
+        multipart (->> [[:file file]
+                        [:model (:model request-opts)]
+                        [:prompt (:prompt request-opts)]
+                        [:language (:language request-opts)]
+                        [:temperature (:temperature request-opts)]
+                        [:response_format (:response-format request-opts)]]
+                       (keep (fn [[field value]]
+                               (when (some? value)
+                                 {:name (name field)
+                                  :content (if (= :file field)
+                                             value
+                                             (multipart-value value))})))
+                       vec)]
+    (try
+      (request-raw-multipart "https://api.openai.com/v1/audio/transcriptions"
+                             multipart
+                             "OpenAI audio transcription request failed.")
+      (finally
+        (when delete-after?
+          (.delete file))))))
+
 (defn transcribe-audio
   ([audio-source]
    (transcribe-audio audio-source {}))
@@ -266,6 +352,21 @@
                   opts
                   "gpt-4o-mini-transcribe"
                   "OpenAI audio transcription request failed.")))
+
+(defn transcribe-audio-srt
+  ([audio-source]
+   (transcribe-audio-srt audio-source {}))
+  ([audio-source opts-or-output-path]
+   (let [opts (if (map? opts-or-output-path)
+                opts-or-output-path
+                {:output-path opts-or-output-path})
+         result (request-audio-srt audio-source opts)
+         file (srt-output-file audio-source (:output-path opts))]
+     (write-text! file result "SRT output write failed.")))
+  ([audio-source output-path opts]
+   (when-not (map? opts)
+     (throw (ex-info "Options must be a map." {})))
+   (transcribe-audio-srt audio-source (assoc opts :output-path output-path))))
 
 (defn translate-audio
   ([audio-source]

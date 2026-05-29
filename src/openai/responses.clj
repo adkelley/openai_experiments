@@ -5,7 +5,7 @@
    [openai.error :as error]))
 
 (def openai-key (System/getenv "OPENAI_API_KEY"))
-(def model "gpt-5.4-minigi")
+(def model "gpt-5.5-mini")
 
 (defn- request-headers []
   {"content-type" "application/json"

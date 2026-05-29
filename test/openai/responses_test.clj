@@ -22,7 +22,7 @@
                 hc/post (fn [_url opts]
                           (is (= "Bearer test-key"
                                  (get-in opts [:headers "authorization"])))
-                          (is (= {:model "gpt-5-mini"
+                          (is (= {:model "gpt-5.5-mini"
                                   :input "Hello"}
                                  (json/decode (:body opts) keyword)))
                           {:status 200

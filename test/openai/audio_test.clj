@@ -145,6 +145,53 @@
       (is (= "OpenAI audio response did not include text."
              (ex-message ex))))))
 
+(deftest transcribe-audio-srt-writes-raw-srt-response
+  (let [output-file (java.io.File/createTempFile "openai-transcription-" ".srt")
+        srt-body "1\n00:00:00,000 --> 00:00:02,000\nこんにちは\n"]
+    (try
+      (with-redefs [audio/openai-key "test-key"
+                    hc/post (fn [url opts]
+                              (is (= "https://api.openai.com/v1/audio/transcriptions"
+                                     url))
+                              (is (= "Bearer test-key"
+                                     (get-in opts [:headers "authorization"])))
+                              (is (= "whisper-1"
+                                     (get-in opts [:multipart 1 :content])))
+                              (is (= "en"
+                                     (get-in opts [:multipart 2 :content])))
+                              (is (= {:name "response_format"
+                                      :content "srt"}
+                                     (get-in opts [:multipart 3])))
+                              {:status 200
+                               :body srt-body})]
+        (is (= (.getPath output-file)
+               (audio/transcribe-audio-srt "README.md"
+                                           (.getPath output-file))))
+        (is (= srt-body
+               (slurp output-file))))
+      (finally
+        (.delete output-file)))))
+
+(deftest transcribe-audio-srt-preserves-explicit-language
+  (let [output-file (java.io.File/createTempFile "openai-transcription-" ".srt")]
+    (try
+      (with-redefs [audio/openai-key "test-key"
+                    hc/post (fn [_url opts]
+                              (is (= {:name "language"
+                                      :content "ja"}
+                                     (get-in opts [:multipart 2])))
+                              (is (= {:name "response_format"
+                                      :content "srt"}
+                                     (get-in opts [:multipart 3])))
+                              {:status 200
+                               :body "1\n00:00:00,000 --> 00:00:02,000\nこんにちは\n"})]
+        (is (= (.getPath output-file)
+               (audio/transcribe-audio-srt "README.md"
+                                           {:language "ja"
+                                            :output-path (.getPath output-file)}))))
+      (finally
+        (.delete output-file)))))
+
 (deftest tts-uses-defaults-for-literal-text
   (let [written-path (atom nil)]
     (with-redefs [audio/openai-key "test-key"

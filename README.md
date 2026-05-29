@@ -178,6 +178,42 @@ Supported options are passed through as multipart fields:
  :temperature 0}
 ```
 
+#### SRT Transcription
+
+`openai.audio/transcribe-audio-srt` sends an audio transcription request and writes the timestamped SRT response to a file.
+
+It defaults to:
+
+```clojure
+{:model "whisper-1"
+ :language "en"
+ :response-format "srt"}
+```
+
+When `:output-path` is omitted, the function writes next to the local audio file with an `.srt` extension and returns that path.
+
+```clojure
+(audio/transcribe-audio-srt "ww2.mp3")
+;; => "ww2.srt"
+```
+
+You can pass an explicit output path:
+
+```clojure
+(audio/transcribe-audio-srt "ww2.mp3" "output.srt")
+;; => "output.srt"
+```
+
+For Japanese audio, override the language:
+
+```clojure
+(audio/transcribe-audio-srt
+ "ww2.mp3"
+ {:language "ja"
+  :output-path "output.srt"})
+;; => "output.srt"
+```
+
 #### Translation
 
 `openai.audio/translate-audio` sends an audio translation request and returns the translated text.
